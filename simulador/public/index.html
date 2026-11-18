@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#101820">
+    <title>Monitor Industrial | Planta Norte</title>
+    <link rel="stylesheet" href="/styles.css">
+    <script type="module" src="/app.js"></script>
+  </head>
+  <body>
+    <header class="topbar">
+      <a class="brand" href="/" aria-label="Monitor Industrial, inicio">
+        <span class="brand-mark" aria-hidden="true">MI</span>
+        <span>MONITOR<span class="brand-light"> INDUSTRIAL</span></span>
+      </a>
+      <div class="topbar-meta">
+        <span class="live-indicator" id="connection"><i></i> Conectando</span>
+        <span class="plant-label">PLANTA NORTE <span>·</span> LÍNEA 01</span>
+      </div>
+    </header>
+
+    <main class="dashboard">
+      <section class="page-heading">
+        <div>
+          <p class="eyebrow">CENTRO DE OPERACIONES <span>/</span> SUPERVISIÓN</p>
+          <h1>Estado de planta</h1>
+          <p class="subtitle">Telemetría simulada de maquinaria en tiempo real.</p>
+        </div>
+        <div class="controls">
+          <button class="button button-secondary" id="toggle-button" type="button" disabled>
+            <span aria-hidden="true">Ⅱ</span> Pausar
+          </button>
+          <button class="button button-primary" id="reset-button" type="button" disabled>
+            <span aria-hidden="true">↻</span> Reiniciar
+          </button>
+        </div>
+      </section>
+
+      <section class="summary-grid" aria-label="Resumen de planta">
+        <article class="summary-card">
+          <span class="summary-label">MÁQUINAS MONITORIZADAS</span>
+          <strong id="machine-count">—</strong>
+          <span class="summary-foot">Equipos conectados</span>
+        </article>
+        <article class="summary-card">
+          <span class="summary-label">OPERATIVAS</span>
+          <strong id="operational-count">—</strong>
+          <span class="summary-foot">Funcionamiento normal</span>
+        </article>
+        <article class="summary-card summary-warning">
+          <span class="summary-label">EN ATENCIÓN</span>
+          <strong id="attention-count">—</strong>
+          <span class="summary-foot">Requieren seguimiento</span>
+        </article>
+        <article class="summary-card summary-critical">
+          <span class="summary-label">ALARMAS / PARADAS</span>
+          <strong id="incident-count">—</strong>
+          <span class="summary-foot">Requieren intervención</span>
+        </article>
+      </section>
+
+      <section class="section-heading">
+        <div>
+          <h2>Equipos</h2>
+          <p>Lecturas más recientes de cada máquina</p>
+        </div>
+        <span class="updated-label">ACTUALIZACIÓN AUTOMÁTICA · 1 S</span>
+      </section>
+      <section class="machine-grid" id="machine-grid" aria-live="polite" aria-label="Estado de las máquinas"></section>
+
+      <section class="alerts-section">
+        <div class="section-heading">
+          <div>
+            <h2>Alertas activas</h2>
+            <p>Condiciones detectadas en la última lectura</p>
+          </div>
+          <span class="alert-total" id="alert-count">0 alertas</span>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr><th>Equipo</th><th>Condición</th><th>Nivel</th><th>Hora</th></tr>
+            </thead>
+            <tbody id="alerts-body">
+              <tr><td class="empty-state" colspan="4">Esperando las primeras lecturas…</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <footer>
+        <span>MONITOR INDUSTRIAL <span class="footer-divider">/</span> SIMULADOR DE TELEMETRÍA</span>
+        <span id="last-update">Última actualización: —</span>
+      </footer>
+    </main>
+  </body>
+</html>
