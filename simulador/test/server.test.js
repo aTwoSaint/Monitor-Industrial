@@ -2,8 +2,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createSimulator } from '../src/index.js';
 
-async function withServer(run) {
-  const server = createSimulator({ random: () => 0.5, intervalMs: 60_000 });
+async function withServer(run, options = {}) {
+  const server = createSimulator({ random: () => 0.5, intervalMs: 60_000, ...options });
   await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
   const address = server.address();
   try {
@@ -49,5 +49,20 @@ test('pausa y reanuda la simulación y rechaza acciones desconocidas', async () 
       body: JSON.stringify({ action: 'start' }),
     });
     assert.equal((await resume.json()).running, true);
+  });
+});
+
+test('incluye en la API una alerta tras mantener la temperatura elevada', async () => {
+  await withServer(async (baseUrl) => {
+    await new Promise((resolve) => setTimeout(resolve, 1100));
+    const response = await fetch(`${baseUrl}/api/lecturas`);
+    const data = await response.json();
+
+    assert.ok(data.readings.some((reading) =>
+      reading.alerts.some((alert) => alert.code === 'temperature-persistent')));
+  }, {
+    intervalMs: 100,
+    temperatureThreshold: 40,
+    temperatureDurationSeconds: 1,
   });
 });

@@ -20,7 +20,7 @@ npm test
 npm start
 ```
 
-Después abre `http://127.0.0.1:3000` en el navegador. Para cambiar el puerto, define `PORT` antes de iniciar el segundo comando (por ejemplo, `$env:PORT=3001` en PowerShell).
+Después abre `http://127.0.0.1:3000` en el navegador.
 
 ## Arquitectura
 
@@ -36,27 +36,26 @@ Después abre `http://127.0.0.1:3000` en el navegador. Para cambiar el puerto, d
                                                   └────────────────────┘
 ```
 
-El servidor usa únicamente módulos nativos de Node.js y sirve la interfaz y la API desde el mismo origen.
+El servidor usa módulos nativos de Node.js y sirve la interfaz y la API desde el mismo origen.
 
-## Decisiones tomadas
+## Decisiones y estado de esta fase
 
-- **Sin dependencias de ejecución:** HTTP, temporizador y archivos estáticos usan Node.js nativo para que la demo sea fácil de instalar y ejecutar.
-- **Generación centralizada en el servidor:** el navegador recibe las mismas lecturas a través de una API y los controles pausar/reanudar/reiniciar afectan a una única simulación.
-- **Umbrales en el generador existente:** reutiliza `src/generador.js` para mantener juntas la generación, la clasificación y las alertas.
-- **Actualización periódica con polling:** una petición por segundo es suficiente para una demo sencilla, sin añadir WebSockets.
-- **Interfaz en español y adaptable:** prioriza la lectura rápida de estados, métricas y alertas en escritorio y móvil.
+- Se mantiene el dashboard y la API sencillos de la fase anterior: una lectura por segundo y sin dependencias de interfaz.
+- Como primer paso de reglas temporizadas, se añadió una alerta crítica si la temperatura de una máquina supera el umbral configurado durante varios segundos consecutivos.
+- Para esta entrega, el umbral y la duración se configuran al iniciar el servidor con `TEMP_ALERT_THRESHOLD` y `TEMP_ALERT_SECONDS` (valores iniciales: `88` y `5`). Se reinicia el contador si la temperatura vuelve al umbral o por debajo.
+- La regla temporal está cubierta por pruebas unitarias; la base de datos, la actualización en vivo sin polling y el resto de requisitos quedan para fases posteriores.
 
 ## Limitaciones conocidas
 
-- Los datos son sintéticos y se pierden al detener el proceso; no hay persistencia ni conexión con sensores.
-- El estado de la simulación vive en memoria y es compartido por todos los navegadores conectados a esa instancia.
-- La interfaz consulta cada segundo; no se garantiza una entrega inmediata de eventos.
-- No hay autenticación, usuarios, configuración de umbrales ni historial descargable. El servidor escucha solo en `127.0.0.1`, por lo que está pensado para uso local.
-- Las probabilidades y umbrales son ilustrativos y no sustituyen criterios de seguridad industrial.
+- Los datos son sintéticos y se pierden al detener el proceso; todavía no hay persistencia ni conexión con sensores.
+- El estado de la simulación vive en memoria y es compartido por los navegadores conectados a esa instancia.
+- El dashboard consulta la API cada segundo; no usa WebSocket ni Server-Sent Events.
+- La regla de duración solo cubre temperatura y se configura mediante variables de entorno. No tiene una pantalla de administración.
+- El servidor escucha solo en `127.0.0.1`. Las probabilidades y umbrales son ilustrativos y no sustituyen criterios de seguridad industrial.
 
 ## Próximos pasos
 
-1. Conectar una fuente de telemetría real y validar unidades y umbrales con responsables de planta.
-2. Añadir persistencia e histórico con filtros temporales.
-3. Incorporar configuración de máquinas y umbrales, y pruebas de integración de la interfaz.
-4. Añadir autenticación y controles de acceso antes de cualquier despliegue en red.
+1. Añadir persistencia e histórico con una base de datos SQL.
+2. Evaluar Server-Sent Events para enviar actualizaciones en vivo.
+3. Ampliar la configuración de reglas y añadir más pruebas para la API.
+4. Valorar una interfaz React, CI y despliegue una vez asentada la versión local.

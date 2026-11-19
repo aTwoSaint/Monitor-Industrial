@@ -3,6 +3,7 @@ import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 import { generateReading, MACHINE_IDS } from './generador.js';
+import { createTemperatureAlert } from './temperatura-alerta.js';
 
 const PUBLIC_DIR = fileURLToPath(new URL('../public/', import.meta.url));
 const STATIC_FILES = {
@@ -40,14 +41,43 @@ async function readJson(request) {
   }
 }
 
-export function createSimulator({ random = Math.random, intervalMs = 1000 } = {}) {
+function addSustainedAlert(reading, alert) {
+  if (!alert) return reading;
+  const alerts = [...reading.alerts, alert];
+  return {
+    ...reading,
+    alerts,
+    status: reading.machineState === 'Parada'
+      ? 'Parada'
+      : alert.severity === 'critical'
+        ? 'Alarma'
+        : reading.status === 'Operativa'
+          ? 'Atención'
+          : reading.status,
+  };
+}
+
+export function createSimulator({
+  random = Math.random,
+  intervalMs = 1000,
+  temperatureThreshold = 88,
+  temperatureDurationSeconds = 5,
+} = {}) {
+  const temperatureAlert = createTemperatureAlert({
+    threshold: temperatureThreshold,
+    durationSeconds: temperatureDurationSeconds,
+  });
   let running = true;
   let readings = MACHINE_IDS.map((machineId) => generateReading(machineId, undefined, Date.now(), random));
+  readings = readings.map((reading) => addSustainedAlert(reading, temperatureAlert(reading)));
 
   const advance = () => {
     if (!running) return;
     const timestamp = Date.now();
-    readings = readings.map((previous) => generateReading(previous.machineId, previous, timestamp, random));
+    readings = readings.map((previous) => {
+      const reading = generateReading(previous.machineId, previous, timestamp, random);
+      return addSustainedAlert(reading, temperatureAlert(reading));
+    });
   };
   const interval = setInterval(advance, intervalMs);
 
@@ -65,7 +95,11 @@ export function createSimulator({ random = Math.random, intervalMs = 1000 } = {}
         if (action === 'pause') running = false;
         else if (action === 'start') running = true;
         else if (action === 'reset') {
-          readings = MACHINE_IDS.map((machineId) => generateReading(machineId, undefined, Date.now(), random));
+          temperatureAlert.reset();
+          readings = MACHINE_IDS.map((machineId) => {
+            const reading = generateReading(machineId, undefined, Date.now(), random);
+            return addSustainedAlert(reading, temperatureAlert(reading));
+          });
           running = true;
         } else {
           sendJson(response, 400, { error: 'Acción no válida' });
@@ -108,7 +142,10 @@ export function startServer() {
     throw new Error('PORT debe ser un número entero entre 1 y 65535');
   }
 
-  const server = createSimulator();
+  const server = createSimulator({
+    temperatureThreshold: Number(process.env.TEMP_ALERT_THRESHOLD ?? 88),
+    temperatureDurationSeconds: Number(process.env.TEMP_ALERT_SECONDS ?? 5),
+  });
   server.listen(port, '127.0.0.1', () => {
     console.log(`Monitor Industrial disponible en http://127.0.0.1:${port}`);
   });
