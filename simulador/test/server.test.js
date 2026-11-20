@@ -1,6 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { mkdtemp, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
 import { createSimulator } from '../src/index.js';
+import { createHistoryStore } from '../src/historico.js';
 
 async function withServer(run, options = {}) {
   const server = createSimulator({ random: () => 0.5, intervalMs: 60_000, ...options });
@@ -65,4 +69,53 @@ test('incluye en la API una alerta tras mantener la temperatura elevada', async 
     temperatureThreshold: 40,
     temperatureDurationSeconds: 1,
   });
+});
+
+test('guarda y consulta lecturas en el histórico SQLite', async () => {
+  const directory = await mkdtemp(path.join(tmpdir(), 'monitor-industrial-'));
+  const historyPath = path.join(directory, 'monitor.db');
+
+  try {
+    await withServer(async (baseUrl) => {
+      const response = await fetch(`${baseUrl}/api/historico?machineId=M-01&limit=10`);
+      const data = await response.json();
+
+      assert.equal(response.status, 200);
+      assert.ok(data.readings.length > 0);
+      assert.ok(data.readings.every((reading) => reading.machineId === 'M-01'));
+    }, { historyPath });
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
+test('recupera lecturas después de cerrar y volver a abrir SQLite', async () => {
+  const directory = await mkdtemp(path.join(tmpdir(), 'monitor-historico-'));
+  const historyPath = path.join(directory, 'monitor.db');
+  const reading = {
+    machineId: 'M-01',
+    timestamp: new Date(0).toISOString(),
+    temperature: 73.2,
+    pressure: 6.1,
+    vibration: 2.3,
+    machineState: 'Operativa',
+    status: 'Operativa',
+    alerts: [],
+  };
+
+  try {
+    const firstStore = await createHistoryStore({ filePath: historyPath });
+    await firstStore.save([reading]);
+    await firstStore.close();
+
+    const reopenedStore = await createHistoryStore({ filePath: historyPath });
+    const readings = await reopenedStore.getLatest({ machineId: 'M-01' });
+    await reopenedStore.close();
+
+    assert.equal(readings.length, 1);
+    assert.equal(readings[0].machineId, 'M-01');
+    assert.equal(readings[0].temperature, 73.2);
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
 });

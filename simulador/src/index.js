@@ -4,6 +4,7 @@ import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 import { generateReading, MACHINE_IDS } from './generador.js';
 import { createTemperatureAlert } from './temperatura-alerta.js';
+import { createHistoryStore } from './historico.js';
 
 const PUBLIC_DIR = fileURLToPath(new URL('../public/', import.meta.url));
 const STATIC_FILES = {
@@ -62,6 +63,7 @@ export function createSimulator({
   intervalMs = 1000,
   temperatureThreshold = 88,
   temperatureDurationSeconds = 5,
+  historyPath,
 } = {}) {
   const temperatureAlert = createTemperatureAlert({
     threshold: temperatureThreshold,
@@ -70,6 +72,16 @@ export function createSimulator({
   let running = true;
   let readings = MACHINE_IDS.map((machineId) => generateReading(machineId, undefined, Date.now(), random));
   readings = readings.map((reading) => addSustainedAlert(reading, temperatureAlert(reading)));
+  const historyReady = createHistoryStore({
+    filePath: historyPath,
+  }).then((store) => {
+    historyStore = store;
+    return store.save(readings);
+  }).catch((error) => {
+    historyError = error;
+  });
+  let historyStore;
+  let historyError;
 
   const advance = () => {
     if (!running) return;
@@ -77,6 +89,11 @@ export function createSimulator({
     readings = readings.map((previous) => {
       const reading = generateReading(previous.machineId, previous, timestamp, random);
       return addSustainedAlert(reading, temperatureAlert(reading));
+    });
+    historyReady.then(() => {
+      if (historyStore) return historyStore.save(readings);
+    }).catch((error) => {
+      console.error('No se pudo guardar el histórico:', error);
     });
   };
   const interval = setInterval(advance, intervalMs);
@@ -86,6 +103,20 @@ export function createSimulator({
 
     if (url.pathname === '/api/lecturas' && request.method === 'GET') {
       sendJson(response, 200, { running, readings });
+      return;
+    }
+
+    if (url.pathname === '/api/historico' && request.method === 'GET') {
+      try {
+        await historyReady;
+        if (historyError) throw historyError;
+        const machineId = url.searchParams.get('machineId');
+        const limit = url.searchParams.get('limit');
+        const history = await historyStore.getLatest({ machineId: machineId || undefined, limit });
+        sendJson(response, 200, { readings: history });
+      } catch (error) {
+        sendJson(response, 500, { error: 'No se pudo leer el histórico' });
+      }
       return;
     }
 
@@ -101,6 +132,11 @@ export function createSimulator({
             return addSustainedAlert(reading, temperatureAlert(reading));
           });
           running = true;
+          historyReady.then(() => {
+            if (historyStore) return historyStore.save(readings);
+          }).catch((error) => {
+            console.error('No se pudo guardar el histórico:', error);
+          });
         } else {
           sendJson(response, 400, { error: 'Acción no válida' });
           return;
@@ -132,7 +168,14 @@ export function createSimulator({
     sendJson(response, 404, { error: 'Recurso no encontrado' });
   });
 
-  server.once('close', () => clearInterval(interval));
+  server.once('close', () => {
+    clearInterval(interval);
+    historyReady.then(async () => {
+      if (historyStore) await historyStore.close();
+    }).catch((error) => {
+      console.error('No se pudo cerrar el histórico:', error);
+    });
+  });
   return server;
 }
 
@@ -145,6 +188,7 @@ export function startServer() {
   const server = createSimulator({
     temperatureThreshold: Number(process.env.TEMP_ALERT_THRESHOLD ?? 88),
     temperatureDurationSeconds: Number(process.env.TEMP_ALERT_SECONDS ?? 5),
+    historyPath: process.env.HISTORY_DB_PATH ?? path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'data', 'monitor.db'),
   });
   server.listen(port, '127.0.0.1', () => {
     console.log(`Monitor Industrial disponible en http://127.0.0.1:${port}`);

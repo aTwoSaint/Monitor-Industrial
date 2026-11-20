@@ -3,6 +3,8 @@ const alertsBody = document.querySelector('#alerts-body');
 const connection = document.querySelector('#connection');
 const toggleButton = document.querySelector('#toggle-button');
 const resetButton = document.querySelector('#reset-button');
+const historyMachine = document.querySelector('#history-machine');
+const historyBody = document.querySelector('#history-body');
 
 const metricDefinitions = [
   { key: 'temperature', label: 'Temperatura', unit: '°C', digits: 1 },
@@ -111,6 +113,42 @@ async function refresh() {
   }
 }
 
+async function refreshHistory() {
+  try {
+    const machineId = historyMachine.value;
+    const query = machineId ? `?machineId=${encodeURIComponent(machineId)}&limit=20` : '?limit=20';
+    const data = await request(`/api/historico${query}`);
+    historyBody.replaceChildren();
+
+    if (data.readings.length === 0) {
+      const row = makeElement('tr');
+      row.append(makeElement('td', 'empty-state', 'Todavía no hay lecturas guardadas.'));
+      row.firstChild.colSpan = 6;
+      historyBody.append(row);
+      return;
+    }
+
+    for (const reading of [...data.readings].reverse()) {
+      const row = makeElement('tr');
+      row.append(
+        makeElement('td', 'table-machine', reading.machineId),
+        makeElement('td', '', `${reading.temperature.toFixed(1)} °C`),
+        makeElement('td', '', `${reading.pressure.toFixed(2)} bar`),
+        makeElement('td', '', `${reading.vibration.toFixed(2)} mm/s`),
+        makeElement('td', '', reading.status),
+        makeElement('td', 'table-time', new Date(reading.timestamp).toLocaleTimeString('es-ES')),
+      );
+      historyBody.append(row);
+    }
+  } catch (error) {
+    historyBody.replaceChildren();
+    const row = makeElement('tr');
+    row.append(makeElement('td', 'empty-state', `No se pudo cargar el histórico: ${error.message}`));
+    row.firstChild.colSpan = 6;
+    historyBody.append(row);
+  }
+}
+
 toggleButton.addEventListener('click', async () => {
   try {
     const { running } = await request('/api/control', {
@@ -139,5 +177,9 @@ resetButton.addEventListener('click', async () => {
   }
 });
 
+historyMachine.addEventListener('change', refreshHistory);
+
 refresh();
+refreshHistory();
 setInterval(refresh, 1000);
+setInterval(refreshHistory, 5000);

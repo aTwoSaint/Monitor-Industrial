@@ -89,6 +89,35 @@
         </div>
       </section>
 
+      <section class="history-section">
+        <div class="section-heading">
+          <div>
+            <h2>Histórico reciente</h2>
+            <p>Lecturas guardadas en SQLite</p>
+          </div>
+          <label class="history-filter">
+            Equipo
+            <select id="history-machine">
+              <option value="">Todas</option>
+              <option value="M-01">M-01</option>
+              <option value="M-02">M-02</option>
+              <option value="M-03">M-03</option>
+              <option value="M-04">M-04</option>
+            </select>
+          </label>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr><th>Equipo</th><th>Temperatura</th><th>Presión</th><th>Vibración</th><th>Estado</th><th>Hora</th></tr>
+            </thead>
+            <tbody id="history-body">
+              <tr><td class="empty-state" colspan="6">Cargando histórico…</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
       <footer>
         <span>MONITOR INDUSTRIAL <span class="footer-divider">/</span> SIMULADOR DE TELEMETRÍA</span>
         <span id="last-update">Última actualización: —</span>

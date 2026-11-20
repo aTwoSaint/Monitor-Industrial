@@ -94,6 +94,9 @@ td { padding: 12px 17px; border-top: 1px solid #26353e; color: #cbd4d8; font-siz
 .severity-critical { color: var(--red); background: #f2777715; }
 .severity-warning { color: var(--amber); background: #f0b85716; }
 .empty-state { padding: 20px; color: #91a1a8; text-align: center; }
+.history-section { margin-top: 30px; }
+.history-filter { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 11px; }
+.history-filter select { min-height: 34px; padding: 0 28px 0 9px; border: 1px solid var(--line); border-radius: 7px; color: #dce4e7; background: #1a2730; }
 footer { display: flex; justify-content: space-between; margin: 30px 0 22px; padding-top: 15px; border-top: 1px solid #26343d; font-size: 9px; letter-spacing: .06em; }
 .footer-divider { padding: 0 5px; color: #52616a; }
 
