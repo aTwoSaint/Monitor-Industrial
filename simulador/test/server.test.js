@@ -31,6 +31,21 @@ test('publica la interfaz y lecturas para las máquinas configuradas', async () 
   });
 });
 
+test('publica las lecturas por Server-Sent Events', async () => {
+  await withServer(async (baseUrl) => {
+    const response = await fetch(`${baseUrl}/api/eventos`);
+    assert.equal(response.status, 200);
+    assert.match(response.headers.get('content-type'), /text\/event-stream/);
+
+    const reader = response.body.getReader();
+    const { value } = await reader.read();
+    const payload = new TextDecoder().decode(value);
+    assert.match(payload, /^data: /);
+    assert.match(payload, /"running":true/);
+    await reader.cancel();
+  }, { intervalMs: 60_000 });
+});
+
 test('pausa y reanuda la simulación y rechaza acciones desconocidas', async () => {
   await withServer(async (baseUrl) => {
     const pause = await fetch(`${baseUrl}/api/control`, {

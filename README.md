@@ -27,8 +27,9 @@ Después abre `http://127.0.0.1:3000` en el navegador.
 ```text
 ┌────────────────────┐     GET /api/lecturas      ┌────────────────────┐
 │ Navegador           │ ◄──────────────────────── │ Servidor Node.js   │
-│ HTML / CSS / JS     │ ─── POST /api/control ──► │ HTTP + estado      │
+│ HTML / CSS / JS     │ ── SSE /api/eventos ─────►│ HTTP + estado      │
 └────────────────────┘                            └─────────┬──────────┘
+                              ─── POST /api/control ─────────────►
                                                             │ cada segundo
                                                   ┌─────────▼──────────┐
                                                   │ Generador de       │
@@ -46,6 +47,7 @@ El servidor usa módulos nativos de Node.js y sirve la interfaz y la API desde e
 - La regla temporal está cubierta por pruebas unitarias; la actualización en vivo sin polling y el resto de requisitos quedan para fases posteriores.
 - En esta fase se añadió persistencia local con SQLite mediante `sql.js`. Las lecturas se guardan por máquina y pueden consultarse desde `/api/historico?machineId=M-01&limit=20`. El fichero se guarda en `simulador/data/monitor.db` y se puede cambiar con `HISTORY_DB_PATH`.
 - Se añadió al dashboard una vista de histórico reciente con filtro por máquina. El histórico usa los datos persistidos y se actualiza cada cinco segundos.
+- La actualización de las lecturas pasó de consultas periódicas de un segundo a Server-Sent Events. El navegador recibe cada cambio por `/api/eventos` y reconecta automáticamente si la conexión se interrumpe.
 - Al probar la persistencia se descartó `better-sqlite3` porque necesita compilarse con herramientas C++ y no hay una instalación compatible disponible en este equipo. Se eligió `sql.js`, que funciona en Node.js como JavaScript puro y permite seguir con la fase sin instalar Visual Studio.
 
 ## Limitaciones conocidas
@@ -53,7 +55,7 @@ El servidor usa módulos nativos de Node.js y sirve la interfaz y la API desde e
 - Los datos son sintéticos. Las lecturas quedan persistidas en SQLite, pero no existe conexión con sensores reales ni autenticación para el archivo de datos.
 - El histórico se mantiene en un único fichero local sin archivado automático ni limpieza de datos antiguos.
 - El estado de la simulación vive en memoria y es compartido por los navegadores conectados a esa instancia.
-- El dashboard consulta la API cada segundo; no usa WebSocket ni Server-Sent Events.
+- El dashboard mantiene una conexión SSE y consulta el histórico cada cinco segundos.
 - La regla de duración solo cubre temperatura y se configura mediante variables de entorno. No tiene una pantalla de administración.
 - El servidor escucha solo en `127.0.0.1`. Las probabilidades y umbrales son ilustrativos y no sustituyen criterios de seguridad industrial.
 

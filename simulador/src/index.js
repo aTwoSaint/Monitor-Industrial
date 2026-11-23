@@ -82,6 +82,14 @@ export function createSimulator({
   });
   let historyStore;
   let historyError;
+  const sseClients = new Set();
+
+  const publishReadings = () => {
+    const payload = `data: ${JSON.stringify({ running, readings })}\n\n`;
+    for (const response of sseClients) {
+      response.write(payload);
+    }
+  };
 
   const advance = () => {
     if (!running) return;
@@ -90,6 +98,7 @@ export function createSimulator({
       const reading = generateReading(previous.machineId, previous, timestamp, random);
       return addSustainedAlert(reading, temperatureAlert(reading));
     });
+    publishReadings();
     historyReady.then(() => {
       if (historyStore) return historyStore.save(readings);
     }).catch((error) => {
@@ -103,6 +112,19 @@ export function createSimulator({
 
     if (url.pathname === '/api/lecturas' && request.method === 'GET') {
       sendJson(response, 200, { running, readings });
+      return;
+    }
+
+    if (url.pathname === '/api/eventos' && request.method === 'GET') {
+      response.writeHead(200, {
+        'Content-Type': 'text/event-stream',
+        'Cache-Control': 'no-store',
+        'Connection': 'keep-alive',
+        'X-Content-Type-Options': 'nosniff',
+      });
+      sseClients.add(response);
+      response.write(`data: ${JSON.stringify({ running, readings })}\n\n`);
+      request.once('close', () => sseClients.delete(response));
       return;
     }
 
@@ -141,6 +163,7 @@ export function createSimulator({
           sendJson(response, 400, { error: 'Acción no válida' });
           return;
         }
+        publishReadings();
         sendJson(response, 200, { running, readings });
       } catch (error) {
         sendJson(response, error.status ?? 400, { error: error.message });

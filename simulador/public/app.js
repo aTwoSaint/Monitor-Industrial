@@ -113,6 +113,23 @@ async function refresh() {
   }
 }
 
+function connectLiveUpdates() {
+  const events = new EventSource('/api/eventos');
+  events.onmessage = (event) => {
+    try {
+      render(JSON.parse(event.data));
+      connection.classList.remove('has-error');
+    } catch (error) {
+      connection.classList.add('has-error');
+      connection.textContent = `Error al procesar las lecturas: ${error.message}`;
+    }
+  };
+  events.onerror = () => {
+    connection.classList.add('has-error');
+    connection.textContent = 'Reconectando con el servidor…';
+  };
+}
+
 async function refreshHistory() {
   try {
     const machineId = historyMachine.value;
@@ -181,5 +198,5 @@ historyMachine.addEventListener('change', refreshHistory);
 
 refresh();
 refreshHistory();
-setInterval(refresh, 1000);
+connectLiveUpdates();
 setInterval(refreshHistory, 5000);
