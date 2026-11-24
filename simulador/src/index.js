@@ -3,7 +3,7 @@ import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 import { generateReading, MACHINE_IDS } from './generador.js';
-import { createTemperatureAlert } from './temperatura-alerta.js';
+import { createSustainedAlert, createTemperatureAlert } from './temperatura-alerta.js';
 import { createHistoryStore } from './historico.js';
 
 const PUBLIC_DIR = fileURLToPath(new URL('../public/', import.meta.url));
@@ -42,6 +42,35 @@ async function readJson(request) {
   }
 }
 
+function validateHistoryQuery(url) {
+  const machineId = url.searchParams.get('machineId');
+  if (machineId && !MACHINE_IDS.includes(machineId)) {
+    const error = new Error('machineId no válido');
+    error.status = 400;
+    throw error;
+  }
+
+  const limitValue = url.searchParams.get('limit');
+  if (limitValue !== null) {
+    if (!/^\d+$/.test(limitValue)) {
+      const error = new Error('limit debe ser un entero entre 1 y 500');
+      error.status = 400;
+      throw error;
+    }
+    const limit = Number(limitValue);
+    if (!Number.isInteger(limit) || limit < 1 || limit > 500) {
+      const error = new Error('limit debe ser un entero entre 1 y 500');
+      error.status = 400;
+      throw error;
+    }
+  }
+
+  return {
+    machineId: machineId || undefined,
+    limit: limitValue === null ? undefined : Number(limitValue),
+  };
+}
+
 function addSustainedAlert(reading, alert) {
   if (!alert) return reading;
   const alerts = [...reading.alerts, alert];
@@ -63,15 +92,41 @@ export function createSimulator({
   intervalMs = 1000,
   temperatureThreshold = 88,
   temperatureDurationSeconds = 5,
+  pressureThreshold = 2.4,
+  pressureDurationSeconds = 5,
+  vibrationThreshold = 6,
+  vibrationDurationSeconds = 5,
   historyPath,
 } = {}) {
   const temperatureAlert = createTemperatureAlert({
     threshold: temperatureThreshold,
     durationSeconds: temperatureDurationSeconds,
   });
+  const pressureAlert = createSustainedAlert({
+    metric: 'pressure',
+    threshold: pressureThreshold,
+    durationSeconds: pressureDurationSeconds,
+    direction: 'below',
+    code: 'pressure-persistent',
+    severity: 'critical',
+    message: `Presión inferior a ${pressureThreshold} bar durante ${pressureDurationSeconds} s`,
+  });
+  const vibrationAlert = createSustainedAlert({
+    metric: 'vibration',
+    threshold: vibrationThreshold,
+    durationSeconds: vibrationDurationSeconds,
+    direction: 'above',
+    code: 'vibration-persistent',
+    severity: 'critical',
+    message: `Vibración superior a ${vibrationThreshold} mm/s durante ${vibrationDurationSeconds} s`,
+  });
+  const sustainedAlerts = [temperatureAlert, pressureAlert, vibrationAlert];
   let running = true;
   let readings = MACHINE_IDS.map((machineId) => generateReading(machineId, undefined, Date.now(), random));
-  readings = readings.map((reading) => addSustainedAlert(reading, temperatureAlert(reading)));
+  readings = readings.map((reading) => sustainedAlerts.reduce(
+    (withAlerts, alert) => addSustainedAlert(withAlerts, alert(withAlerts)),
+    reading,
+  ));
   const historyReady = createHistoryStore({
     filePath: historyPath,
   }).then((store) => {
@@ -96,7 +151,10 @@ export function createSimulator({
     const timestamp = Date.now();
     readings = readings.map((previous) => {
       const reading = generateReading(previous.machineId, previous, timestamp, random);
-      return addSustainedAlert(reading, temperatureAlert(reading));
+      return sustainedAlerts.reduce(
+        (withAlerts, alert) => addSustainedAlert(withAlerts, alert(withAlerts)),
+        reading,
+      );
     });
     publishReadings();
     historyReady.then(() => {
@@ -132,12 +190,13 @@ export function createSimulator({
       try {
         await historyReady;
         if (historyError) throw historyError;
-        const machineId = url.searchParams.get('machineId');
-        const limit = url.searchParams.get('limit');
+        const { machineId, limit } = validateHistoryQuery(url);
         const history = await historyStore.getLatest({ machineId: machineId || undefined, limit });
         sendJson(response, 200, { readings: history });
       } catch (error) {
-        sendJson(response, 500, { error: 'No se pudo leer el histórico' });
+        sendJson(response, error.status ?? 500, {
+          error: error.status ? error.message : 'No se pudo leer el histórico',
+        });
       }
       return;
     }
@@ -148,10 +207,13 @@ export function createSimulator({
         if (action === 'pause') running = false;
         else if (action === 'start') running = true;
         else if (action === 'reset') {
-          temperatureAlert.reset();
+          sustainedAlerts.forEach((alert) => alert.reset());
           readings = MACHINE_IDS.map((machineId) => {
             const reading = generateReading(machineId, undefined, Date.now(), random);
-            return addSustainedAlert(reading, temperatureAlert(reading));
+            return sustainedAlerts.reduce(
+              (withAlerts, alert) => addSustainedAlert(withAlerts, alert(withAlerts)),
+              reading,
+            );
           });
           running = true;
           historyReady.then(() => {
@@ -211,6 +273,10 @@ export function startServer() {
   const server = createSimulator({
     temperatureThreshold: Number(process.env.TEMP_ALERT_THRESHOLD ?? 88),
     temperatureDurationSeconds: Number(process.env.TEMP_ALERT_SECONDS ?? 5),
+    pressureThreshold: Number(process.env.PRESSURE_ALERT_THRESHOLD ?? 2.4),
+    pressureDurationSeconds: Number(process.env.PRESSURE_ALERT_SECONDS ?? 5),
+    vibrationThreshold: Number(process.env.VIBRATION_ALERT_THRESHOLD ?? 6),
+    vibrationDurationSeconds: Number(process.env.VIBRATION_ALERT_SECONDS ?? 5),
     historyPath: process.env.HISTORY_DB_PATH ?? path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'data', 'monitor.db'),
   });
   server.listen(port, '127.0.0.1', () => {

@@ -71,6 +71,49 @@ test('pausa y reanuda la simulación y rechaza acciones desconocidas', async () 
   });
 });
 
+test('rechaza controles con JSON mal formado y cuerpos demasiado grandes', async () => {
+  await withServer(async (baseUrl) => {
+    const malformed = await fetch(`${baseUrl}/api/control`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: '{',
+    });
+    assert.equal(malformed.status, 400);
+    assert.equal((await malformed.json()).error, 'El cuerpo debe ser un JSON válido');
+
+    const oversized = await fetch(`${baseUrl}/api/control`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: ' '.repeat(1025),
+    });
+    assert.equal(oversized.status, 413);
+  });
+});
+
+test('valida los parámetros del histórico', async () => {
+  await withServer(async (baseUrl) => {
+    const invalidMachine = await fetch(`${baseUrl}/api/historico?machineId=M-99`);
+    assert.equal(invalidMachine.status, 400);
+
+    const invalidLimit = await fetch(`${baseUrl}/api/historico?limit=abc`);
+    assert.equal(invalidLimit.status, 400);
+
+    const oversizedLimit = await fetch(`${baseUrl}/api/historico?limit=501`);
+    assert.equal(oversizedLimit.status, 400);
+
+    const validLimit = await fetch(`${baseUrl}/api/historico?limit=1`);
+    assert.equal(validLimit.status, 200);
+  });
+});
+
+test('devuelve 404 para rutas que no existen', async () => {
+  await withServer(async (baseUrl) => {
+    const response = await fetch(`${baseUrl}/ruta-inexistente`);
+    assert.equal(response.status, 404);
+    assert.equal((await response.json()).error, 'Recurso no encontrado');
+  });
+});
+
 test('incluye en la API una alerta tras mantener la temperatura elevada', async () => {
   await withServer(async (baseUrl) => {
     await new Promise((resolve) => setTimeout(resolve, 1100));
