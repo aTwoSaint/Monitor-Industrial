@@ -6,12 +6,38 @@ import { generateReading, MACHINE_IDS } from './generador.js';
 import { createSustainedAlert, createTemperatureAlert } from './temperatura-alerta.js';
 import { createHistoryStore } from './historico.js';
 
+const DIST_DIR = fileURLToPath(new URL('../dist/', import.meta.url));
 const PUBLIC_DIR = fileURLToPath(new URL('../public/', import.meta.url));
-const STATIC_FILES = {
-  '/': ['index.html', 'text/html; charset=utf-8'],
-  '/app.js': ['app.js', 'text/javascript; charset=utf-8'],
-  '/styles.css': ['styles.css', 'text/css; charset=utf-8'],
+const CONTENT_TYPES = {
+  '.html': 'text/html; charset=utf-8',
+  '.js': 'text/javascript; charset=utf-8',
+  '.css': 'text/css; charset=utf-8',
+  '.svg': 'image/svg+xml',
+  '.json': 'application/json; charset=utf-8',
 };
+
+function isInsideDirectory(directory, filePath) {
+  const relative = path.relative(directory, filePath);
+  return relative === '' || (!relative.startsWith('..') && !path.isAbsolute(relative));
+}
+
+async function readStaticFile(urlPathname) {
+  const relativePath = urlPathname === '/' ? 'index.html' : urlPathname.replace(/^\/+/, '');
+  for (const directory of [DIST_DIR, PUBLIC_DIR]) {
+    const filePath = path.resolve(directory, relativePath);
+    if (!isInsideDirectory(directory, filePath)) continue;
+    try {
+      const content = await readFile(filePath);
+      return {
+        content,
+        contentType: CONTENT_TYPES[path.extname(filePath).toLowerCase()] ?? 'application/octet-stream',
+      };
+    } catch (error) {
+      if (error.code !== 'ENOENT') throw error;
+    }
+  }
+  return undefined;
+}
 const MAX_BODY_BYTES = 1024;
 
 function sendJson(response, status, data) {
@@ -233,21 +259,23 @@ export function createSimulator({
       return;
     }
 
-    if (request.method === 'GET' && STATIC_FILES[url.pathname]) {
-      const [filename, contentType] = STATIC_FILES[url.pathname];
+    if (request.method === 'GET') {
       try {
-        const content = await readFile(path.join(PUBLIC_DIR, filename));
-        response.writeHead(200, {
-          'Content-Type': contentType,
-          'Cache-Control': 'no-store',
-          'X-Content-Type-Options': 'nosniff',
-        });
-        response.end(content);
+        const staticFile = await readStaticFile(url.pathname);
+        if (staticFile) {
+          response.writeHead(200, {
+            'Content-Type': staticFile.contentType,
+            'Cache-Control': 'no-store',
+            'X-Content-Type-Options': 'nosniff',
+          });
+          response.end(staticFile.content);
+          return;
+        }
       } catch (error) {
-        console.error(`No se pudo leer el recurso ${filename}:`, error);
+        console.error(`No se pudo leer el recurso ${url.pathname}:`, error);
         sendJson(response, 500, { error: 'No se pudo cargar la interfaz' });
+        return;
       }
-      return;
     }
 
     sendJson(response, 404, { error: 'Recurso no encontrado' });

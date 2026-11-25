@@ -17,10 +17,20 @@ Requiere Node.js 18 o superior. Desde la raíz del repositorio:
 ```bash
 cd simulador
 npm test
+npm run build
 npm start
 ```
 
 Después abre `http://127.0.0.1:3000` en el navegador.
+
+Para desarrollar el frontend React con recarga automática:
+
+```bash
+npm run dev
+npm start
+```
+
+Vite sirve la interfaz en `http://127.0.0.1:5173` y redirige las llamadas `/api` al servidor Node en el puerto 3000.
 
 ## Arquitectura
 
@@ -37,7 +47,7 @@ Después abre `http://127.0.0.1:3000` en el navegador.
                                                   └────────────────────┘
 ```
 
-El servidor usa módulos nativos de Node.js y sirve la interfaz y la API desde el mismo origen.
+El servidor usa módulos nativos de Node.js y sirve la compilación React y la API desde el mismo origen. Vite se usa para desarrollo y compilación del frontend.
 
 ## Decisiones y estado de esta fase
 
