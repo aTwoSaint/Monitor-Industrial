@@ -1,6 +1,6 @@
-import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createSustainedAlert, createTemperatureAlert } from '../src/temperatura-alerta.js';
+const test = (name, fn) => it(name, fn);
 
 function reading(machineId, temperature, second) {
   return {

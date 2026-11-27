@@ -124,11 +124,11 @@ export function createSimulator({
   vibrationDurationSeconds = 5,
   historyPath,
 } = {}) {
-  const temperatureAlert = createTemperatureAlert({
+  let temperatureAlert = createTemperatureAlert({
     threshold: temperatureThreshold,
     durationSeconds: temperatureDurationSeconds,
   });
-  const pressureAlert = createSustainedAlert({
+  let pressureAlert = createSustainedAlert({
     metric: 'pressure',
     threshold: pressureThreshold,
     durationSeconds: pressureDurationSeconds,
@@ -137,7 +137,7 @@ export function createSimulator({
     severity: 'critical',
     message: `Presión inferior a ${pressureThreshold} bar durante ${pressureDurationSeconds} s`,
   });
-  const vibrationAlert = createSustainedAlert({
+  let vibrationAlert = createSustainedAlert({
     metric: 'vibration',
     threshold: vibrationThreshold,
     durationSeconds: vibrationDurationSeconds,
@@ -146,7 +146,7 @@ export function createSimulator({
     severity: 'critical',
     message: `Vibración superior a ${vibrationThreshold} mm/s durante ${vibrationDurationSeconds} s`,
   });
-  const sustainedAlerts = [temperatureAlert, pressureAlert, vibrationAlert];
+  let sustainedAlerts = [temperatureAlert, pressureAlert, vibrationAlert];
   let running = true;
   let readings = MACHINE_IDS.map((machineId) => generateReading(machineId, undefined, Date.now(), random));
   readings = readings.map((reading) => sustainedAlerts.reduce(
@@ -164,6 +164,44 @@ export function createSimulator({
   let historyStore;
   let historyError;
   const sseClients = new Set();
+
+  const getRules = () => ({
+    temperature: { threshold: temperatureThreshold, durationSeconds: temperatureDurationSeconds },
+    pressure: { threshold: pressureThreshold, durationSeconds: pressureDurationSeconds },
+    vibration: { threshold: vibrationThreshold, durationSeconds: vibrationDurationSeconds },
+  });
+
+  const rebuildRules = (rules) => {
+    temperatureThreshold = rules.temperature.threshold;
+    temperatureDurationSeconds = rules.temperature.durationSeconds;
+    pressureThreshold = rules.pressure.threshold;
+    pressureDurationSeconds = rules.pressure.durationSeconds;
+    vibrationThreshold = rules.vibration.threshold;
+    vibrationDurationSeconds = rules.vibration.durationSeconds;
+    temperatureAlert = createTemperatureAlert({
+      threshold: temperatureThreshold,
+      durationSeconds: temperatureDurationSeconds,
+    });
+    pressureAlert = createSustainedAlert({
+      metric: 'pressure',
+      threshold: pressureThreshold,
+      durationSeconds: pressureDurationSeconds,
+      direction: 'below',
+      code: 'pressure-persistent',
+      severity: 'critical',
+      message: `Presión inferior a ${pressureThreshold} bar durante ${pressureDurationSeconds} s`,
+    });
+    vibrationAlert = createSustainedAlert({
+      metric: 'vibration',
+      threshold: vibrationThreshold,
+      durationSeconds: vibrationDurationSeconds,
+      direction: 'above',
+      code: 'vibration-persistent',
+      severity: 'critical',
+      message: `Vibración superior a ${vibrationThreshold} mm/s durante ${vibrationDurationSeconds} s`,
+    });
+    sustainedAlerts = [temperatureAlert, pressureAlert, vibrationAlert];
+  };
 
   const publishReadings = () => {
     const payload = `data: ${JSON.stringify({ running, readings })}\n\n`;
@@ -223,6 +261,49 @@ export function createSimulator({
         sendJson(response, error.status ?? 500, {
           error: error.status ? error.message : 'No se pudo leer el histórico',
         });
+      }
+      return;
+    }
+
+    if (url.pathname === '/api/reglas' && request.method === 'GET') {
+      sendJson(response, 200, getRules());
+      return;
+    }
+
+    if (url.pathname === '/api/reglas' && request.method === 'PUT') {
+      try {
+        const rules = await readJson(request);
+        for (const metric of ['temperature', 'pressure', 'vibration']) {
+          if (!rules[metric]
+            || !Number.isFinite(Number(rules[metric].threshold))
+            || !Number.isInteger(Number(rules[metric].durationSeconds))
+            || Number(rules[metric].durationSeconds) < 1
+            || Number(rules[metric].durationSeconds) > 3600) {
+            throw Object.assign(new Error(`Regla inválida para ${metric}`), { status: 400 });
+          }
+        }
+        rebuildRules({
+          temperature: {
+            threshold: Number(rules.temperature.threshold),
+            durationSeconds: Number(rules.temperature.durationSeconds),
+          },
+          pressure: {
+            threshold: Number(rules.pressure.threshold),
+            durationSeconds: Number(rules.pressure.durationSeconds),
+          },
+          vibration: {
+            threshold: Number(rules.vibration.threshold),
+            durationSeconds: Number(rules.vibration.durationSeconds),
+          },
+        });
+        readings = readings.map((reading) => sustainedAlerts.reduce(
+          (withAlerts, alert) => addSustainedAlert(withAlerts, alert(withAlerts)),
+          reading,
+        ));
+        publishReadings();
+        sendJson(response, 200, getRules());
+      } catch (error) {
+        sendJson(response, error.status ?? 400, { error: error.message });
       }
       return;
     }

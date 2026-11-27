@@ -82,6 +82,11 @@ h1 { margin: 0; color: #f1f5f6; font-size: clamp(26px, 3vw, 34px); letter-spacin
 .machine-foot .state-dot { width: 6px; height: 6px; }
 .state-atención .state-dot { background: var(--amber); box-shadow: none; }
 .state-alarma .state-dot, .state-parada .state-dot { background: var(--red); box-shadow: none; }
+.machine-charts { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin-top: 12px; }
+.machine-chart { min-width: 0; padding: 8px; border: 1px solid #27363f; border-radius: 7px; }
+.machine-chart > span { display: block; color: #8b9ba6; font-size: 9px; }
+.sparkline svg { display: block; width: 100%; height: 48px; }
+.sparkline span { display: block; color: #aab7bd; font-size: 8px; text-align: right; }
 .alerts-section { margin-top: 30px; }
 .alerts-section .section-heading { margin-top: 0; }
 .alert-total { color: #9eacb3; font-size: 11px; }
@@ -94,6 +99,15 @@ td { padding: 12px 17px; border-top: 1px solid #26353e; color: #cbd4d8; font-siz
 .severity-critical { color: var(--red); background: #f2777715; }
 .severity-warning { color: var(--amber); background: #f0b85716; }
 .empty-state { padding: 20px; color: #91a1a8; text-align: center; }
+.rules-section { margin-top: 30px; padding: 18px; border: 1px solid var(--line); border-radius: 9px; background: var(--surface); }
+.rules-section .section-heading { margin: 0 0 14px; }
+.rules-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+.rule-field { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; padding: 12px; border: 1px solid #27363f; border-radius: 7px; }
+.rule-field strong { grid-column: 1 / -1; color: #dce4e7; font-size: 12px; }
+.rule-field label { color: #91a1a8; font-size: 9px; }
+.rule-field input { display: block; width: 100%; box-sizing: border-box; margin-top: 5px; padding: 8px; border: 1px solid var(--line); border-radius: 6px; color: #e6ecef; background: #16232b; }
+.rules-section > .button { margin-top: 12px; }
+.form-error { color: var(--red); font-size: 11px; }
 .history-section { margin-top: 30px; }
 .history-filter { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 11px; }
 .history-filter select { min-height: 34px; padding: 0 28px 0 9px; border: 1px solid var(--line); border-radius: 7px; color: #dce4e7; background: #1a2730; }
@@ -110,6 +124,8 @@ footer { display: flex; justify-content: space-between; margin: 30px 0 22px; pad
   .summary-card { min-height: 112px; padding: 15px; }
   .summary-card strong { font-size: 25px; }
   .machine-grid { grid-template-columns: 1fr; }
+  .machine-charts { grid-template-columns: 1fr; }
+  .rules-grid { grid-template-columns: 1fr; }
   .updated-label { max-width: 115px; line-height: 1.5; text-align: right; }
   footer { gap: 12px; flex-direction: column; }
 }

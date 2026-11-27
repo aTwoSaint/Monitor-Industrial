@@ -6,7 +6,7 @@
     "dev": "vite --config vite.config.js",
     "start": "node src/index.js",
     "build": "vite build --config vite.config.js",
-    "test": "node --test"
+    "test": "mocha \"test/**/*.test.js\""
   },
   "dependencies": {
     "react": "^19.3.1",
@@ -15,6 +15,7 @@
   },
   "devDependencies": {
     "@vitejs/plugin-react": "^6.3.0",
+    "mocha": "^11.7.5",
     "vite": "^8.3.8"
   }
 }

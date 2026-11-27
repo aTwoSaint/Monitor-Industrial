@@ -1,0 +1,11 @@
+services:
+  - type: web
+    name: monitor-industrial
+    runtime: node
+    rootDir: simulador
+    buildCommand: npm ci && npm run build
+    startCommand: npm start
+    healthCheckPath: /api/lecturas
+    envVars:
+      - key: NODE_VERSION
+        value: 20

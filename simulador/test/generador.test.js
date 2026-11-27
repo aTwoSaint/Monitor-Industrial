@@ -1,6 +1,6 @@
-import test from 'node:test';
 import assert from 'node:assert/strict';
 import { ALERT_THRESHOLDS, generateReading, MACHINE_IDS } from '../src/generador.js';
+const test = (name, fn) => it(name, fn);
 
 test('genera lecturas iniciales para todas las máquinas', () => {
   for (const machineId of MACHINE_IDS) {

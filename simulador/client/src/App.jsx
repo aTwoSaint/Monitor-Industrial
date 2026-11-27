@@ -63,7 +63,7 @@ function SummaryCards({ readings }) {
   );
 }
 
-function MachineCard({ reading }) {
+function MachineCard({ reading, history }) {
   return (
     <article className={`machine-card state-${reading.status.toLowerCase()}`}>
       <div className="machine-heading">
@@ -84,11 +84,108 @@ function MachineCard({ reading }) {
           </div>
         ))}
       </div>
+      <div className="machine-charts">
+        {metricDefinitions.map((metric) => (
+          <div className="machine-chart" key={metric.key}>
+            <span>{metric.label}</span>
+            <Sparkline
+              values={(history?.[metric.key] ?? []).map((value) => value)}
+              unit={metric.unit}
+              color={metric.key === 'temperature' ? '#d97706' : metric.key === 'pressure' ? '#2563eb' : '#7c3aed'}
+            />
+          </div>
+        ))}
+      </div>
       <div className="machine-foot">
         <span className="state-dot"></span>
         <span>Estado: {reading.machineState}</span>
       </div>
     </article>
+  );
+}
+
+function Sparkline({ values, unit, color = '#2e9b70' }) {
+  if (!values.length) return null;
+  const width = 280;
+  const height = 72;
+  const visible = values.slice(-30);
+  const minimum = Math.min(...visible);
+  const maximum = Math.max(...visible);
+  const range = maximum - minimum || 1;
+  const points = visible.map((value, index) => {
+    const x = visible.length === 1 ? width / 2 : index * (width / (visible.length - 1));
+    const y = height - 8 - ((value - minimum) / range) * (height - 16);
+    return `${x},${y}`;
+  }).join(' ');
+
+  return (
+    <div className="sparkline" aria-label={`Evolución reciente en ${unit}`}>
+      <svg viewBox={`0 0 ${width} ${height}`} role="img">
+        <polyline points={points} fill="none" stroke={color} strokeWidth="3" strokeLinejoin="round" />
+      </svg>
+      <span>{minimum.toFixed(unit === '°C' ? 1 : 2)} – {maximum.toFixed(unit === '°C' ? 1 : 2)} {unit}</span>
+    </div>
+  );
+}
+
+function RulesPanel({ rules, onSave, saving, error }) {
+  const [draft, setDraft] = useState(rules);
+
+  useEffect(() => setDraft(rules), [rules]);
+
+  if (!draft) return null;
+
+  const definitions = [
+    ['temperature', 'Temperatura', '°C'],
+    ['pressure', 'Presión baja', 'bar'],
+    ['vibration', 'Vibración alta', 'mm/s'],
+  ];
+
+  return (
+    <section className="rules-section">
+      <div className="section-heading">
+        <div>
+          <h2>Reglas de alerta</h2>
+          <p>Los cambios se aplican a la simulación activa</p>
+        </div>
+      </div>
+      <div className="rules-grid">
+        {definitions.map(([metric, label, unit]) => (
+          <div className="rule-field" key={metric}>
+            <strong>{label}</strong>
+            <label>
+              Umbral ({unit})
+              <input
+                type="number"
+                step={metric === 'temperature' ? '1' : '0.1'}
+                value={draft[metric]?.threshold ?? ''}
+                onChange={(event) => setDraft((current) => ({
+                  ...current,
+                  [metric]: { ...current[metric], threshold: Number(event.target.value) },
+                }))}
+              />
+            </label>
+            <label>
+              Duración (s)
+              <input
+                type="number"
+                min="1"
+                max="3600"
+                value={draft[metric]?.durationSeconds ?? ''}
+                onChange={(event) => setDraft((current) => ({
+                  ...current,
+                  [metric]: { ...current[metric], durationSeconds: Number(event.target.value) },
+                }))}
+              />
+            </label>
+          </div>
+        ))}
+      </div>
+      {error && <p className="form-error">{error}</p>}
+      <button className="button button-primary" type="button" disabled={saving} onClick={() => onSave(draft)}>
+        {saving ? 'Guardando…' : 'Guardar reglas'}
+      </button>
+    </section>
   );
 }
 
@@ -187,17 +284,36 @@ function HistoryTable({ readings, machineId, onMachineChange, error }) {
 
 export default function App() {
   const [readings, setReadings] = useState([]);
+  const [series, setSeries] = useState({});
   const [running, setRunning] = useState(true);
   const [connectionError, setConnectionError] = useState('');
   const [historyMachine, setHistoryMachine] = useState('');
   const [historyReadings, setHistoryReadings] = useState([]);
   const [historyError, setHistoryError] = useState('');
   const [lastUpdate, setLastUpdate] = useState('—');
+  const [rules, setRules] = useState(null);
+  const [rulesSaving, setRulesSaving] = useState(false);
+  const [rulesError, setRulesError] = useState('');
+
+  function updateSeries(nextReadings) {
+    setSeries((current) => {
+      const next = { ...current };
+      for (const reading of nextReadings) {
+        const machine = next[reading.machineId] ?? { temperature: [], pressure: [], vibration: [] };
+        for (const metric of metricDefinitions) {
+          machine[metric.key] = [...machine[metric.key], reading[metric.key]].slice(-30);
+        }
+        next[reading.machineId] = machine;
+      }
+      return next;
+    });
+  }
 
   async function refreshReadings() {
     try {
       const data = await request('/api/lecturas');
       setReadings(data.readings);
+      updateSeries(data.readings);
       setRunning(data.running);
       setConnectionError('');
       setLastUpdate(new Date().toLocaleTimeString('es-ES'));
@@ -216,16 +332,43 @@ export default function App() {
       setHistoryReadings([]);
       setHistoryError(error.message);
     }
+
+    async function refreshRules() {
+      try {
+        setRules(await request('/api/reglas'));
+        setRulesError('');
+      } catch (error) {
+        setRulesError(error.message);
+      }
+    }
+
+    async function saveRules(nextRules) {
+      setRulesSaving(true);
+      try {
+        setRules(await request('/api/reglas', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(nextRules),
+        }));
+        setRulesError('');
+      } catch (error) {
+        setRulesError(error.message);
+      } finally {
+        setRulesSaving(false);
+      }
+    }
   }
 
   useEffect(() => {
     refreshReadings();
     refreshHistory();
+    refreshRules();
     const events = new EventSource('/api/eventos');
     events.onmessage = (event) => {
       try {
         const data = JSON.parse(event.data);
         setReadings(data.readings);
+        updateSeries(data.readings);
         setRunning(data.running);
         setConnectionError('');
         setLastUpdate(new Date().toLocaleTimeString('es-ES'));
@@ -301,9 +444,17 @@ export default function App() {
           <span className="updated-label">ACTUALIZACIÓN AUTOMÁTICA · 1 S</span>
         </section>
         <section className="machine-grid" aria-live="polite" aria-label="Estado de las máquinas">
-          {readings.map((reading) => <MachineCard reading={reading} key={reading.machineId} />)}
+          {readings.map((reading) => (
+            <MachineCard reading={reading} history={series[reading.machineId]} key={reading.machineId} />
+          ))}
         </section>
         <AlertsTable readings={readings} />
+        <RulesPanel
+          rules={rules}
+          onSave={saveRules}
+          saving={rulesSaving}
+          error={rulesError}
+        />
         <HistoryTable
           readings={historyReadings}
           machineId={historyMachine}

@@ -1,10 +1,10 @@
-import test from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { createSimulator } from '../src/index.js';
 import { createHistoryStore } from '../src/historico.js';
+const test = (name, fn) => it(name, fn);
 
 async function withServer(run, options = {}) {
   const server = createSimulator({ random: () => 0.5, intervalMs: 60_000, ...options });
@@ -87,6 +87,28 @@ test('rechaza controles con JSON mal formado y cuerpos demasiado grandes', async
       body: ' '.repeat(1025),
     });
     assert.equal(oversized.status, 413);
+  });
+});
+
+test('consulta y actualiza las reglas de alerta mediante la API', async () => {
+  await withServer(async (baseUrl) => {
+    const initial = await fetch(`${baseUrl}/api/reglas`);
+    assert.equal(initial.status, 200);
+    assert.equal((await initial.json()).temperature.durationSeconds, 5);
+
+    const updated = await fetch(`${baseUrl}/api/reglas`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        temperature: { threshold: 75, durationSeconds: 3 },
+        pressure: { threshold: 2.8, durationSeconds: 4 },
+        vibration: { threshold: 5.5, durationSeconds: 6 },
+      }),
+    });
+    assert.equal(updated.status, 200);
+    const rules = await updated.json();
+    assert.equal(rules.temperature.threshold, 75);
+    assert.equal(rules.pressure.durationSeconds, 4);
   });
 });
 

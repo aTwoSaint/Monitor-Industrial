@@ -16,9 +16,8 @@ Requiere Node.js 18 o superior. Desde la raíz del repositorio:
 
 ```bash
 cd simulador
-npm test
-npm run build
-npm start
+npm install
+npm test && npm run build && npm start
 ```
 
 Después abre `http://127.0.0.1:3000` en el navegador.
@@ -60,6 +59,9 @@ El servidor usa módulos nativos de Node.js y sirve la compilación React y la A
 - En esta fase se añadió persistencia local con SQLite mediante `sql.js`. Las lecturas se guardan por máquina y pueden consultarse desde `/api/historico?machineId=M-01&limit=20`. El fichero se guarda en `simulador/data/monitor.db` y se puede cambiar con `HISTORY_DB_PATH`.
 - Se añadió al dashboard una vista de histórico reciente con filtro por máquina. El histórico usa los datos persistidos y se actualiza cada cinco segundos.
 - La actualización de las lecturas pasó de consultas periódicas de un segundo a Server-Sent Events. El navegador recibe cada cambio por `/api/eventos` y reconecta automáticamente si la conexión se interrumpe.
+- El dashboard incluye gráficos de evolución recientes y un panel para configurar umbrales y duraciones sin reiniciar el servidor.
+- Las pruebas unitarias y de API se ejecutan con Mocha. GitHub Actions instala el proyecto, ejecuta los tests y compila React en cada push o pull request.
+- El repositorio incluye `render.yaml` para desplegar el servidor Node y el frontend construido como un único servicio web.
 - Al probar la persistencia se descartó `better-sqlite3` porque necesita compilarse con herramientas C++ y no hay una instalación compatible disponible en este equipo. Se eligió `sql.js`, que funciona en Node.js como JavaScript puro y permite seguir con la fase sin instalar Visual Studio.
 
 ## Limitaciones conocidas
